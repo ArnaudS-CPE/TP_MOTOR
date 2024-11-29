@@ -27,8 +27,12 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <inttypes.h>
+#include <math.h>
 #include <motor.h>
 #include <encoder.h>
+#include <pid.h>
+#include <DriveSyst.h>
+#include <mpu6050.h>
 
 /* USER CODE END Includes */
 
@@ -56,7 +60,11 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-static Encoder_Feedback_t encoder;
+extern int mode;
+
+extern PID_t pid;
+extern Encoder_Feedback_t encoder;
+extern Xyz acc;
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -74,7 +82,8 @@ void HAL_SYSTICK_Callback(void){
 		tempoEncNms--;
 	else{
 		tempoEncNms = 40;
-		encoder = Encoder_Read();
+
+		DriveSyst();
 	}
 }
 
@@ -93,6 +102,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+	//int mode = 2;
 
   /* USER CODE END 1 */
 
@@ -121,40 +131,56 @@ int main(void)
   /* USER CODE BEGIN 2 */
   Motor_Init();
   Encoder_Init();
-  //printf("init OK");
+  MPU6050_Init();
 
-  //float a;
-  //float b;
-  //Encoder_Feedback_t encoder;
+  mode = 2;
+
+  switch(mode)
+  {
+      case 0: //vitesse
+    	  PID_Init(&pid, 0.2f, 0.03f, 0.03f, 50.0f, 0.01f);
+    	  pid.input.order = 0.0f;
+    	  pid.input.feedback = 0.0f;
+    	  break;
+
+      case 1: //position
+          PID_Init(&pid, 0.64f, 0.0f, 0.01f, 50.0f, 0.01f);
+          pid.input.order = 0.0f;
+          pid.input.feedback = 0.0f;
+          break;
+
+      case 2: //acceleration
+          PID_Init(&pid, 0.64f, 0.0f, 0.01f, 50.0f, 0.01f);
+          pid.input.order = 0.0f;
+          pid.input.feedback = 0.0f;
+          break;
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  Motor_Pwm_Update(-1.0f);
-	  //HAL_Delay(1000);
-	  //Motor_Pwm_Update(-0.7f);
-	  //HAL_Delay(2000);
-	  //Motor_Pwm_Update(0.0f);
-	  //HAL_Delay(3000);
-	  //Motor_Pwm_Update(0.3f);
-	  //HAL_Delay(1000);
-	  //Motor_Pwm_Update(0.7f);
-	  //HAL_Delay(1000);
 
-	  //enc = htim3.Instance->CNT;
-	  //encoder = Encoder_Read();
 	  printf("\r");
-	  printf("%f", encoder.angle_abs);
+	  printf("angle absolu : %f", encoder.angle_abs);
 	  printf("   ");
-	  printf("%f", encoder.angle_rel);
+	  printf("angle relatif : %f", encoder.angle_rel);
 	  printf("   ");
-	  printf("%f", encoder.d_angle);
-	  //HAL_Delay(40);
+	  printf("vitesse : %f", encoder.d_angle);
 
-	  //HAL_Delay(1000);
-
+	  //gestion du bouton
+	  if(HAL_GPIO_ReadPin (GPIOC, GPIO_PIN_13) == 0){
+		  printf("\r button pressed");
+		  if(pid.input.order < (2*M_PI)){
+			  pid.input.order = pid.input.order + (M_PI/2);
+			  HAL_Delay(500);
+		  }else{
+			  pid.input.order = (-2*M_PI);
+			  HAL_Delay(500);
+		  }
+	  }
 
     /* USER CODE END WHILE */
 

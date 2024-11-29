@@ -23,6 +23,13 @@ void Motor_Init(void){
 
 void Motor_Pwm_Update(float in){
 
+	if(in > 1.0){
+		in = 1.0;
+	}
+	if(in < -1.0){
+		in = -1.0;
+	}
+
 	uint32_t speed = htim1.Init.Period - (uint32_t)(fabs(in) * htim1.Init.Period);
 
 	if(in > 0.0f){

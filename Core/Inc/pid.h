@@ -33,7 +33,6 @@ typedef struct {
 } PID_t;
 
 // public functions
-void PID_Init(PID_t* pidHandle, float Kp, float Ki, float Kd, float windup, float
-error_stop);
+void PID_Init(PID_t* pidHandle, float Kp, float Ki, float Kd, float windup, float error_stop);
 float PID_Execute(PID_t* pidHandle);
 #endif

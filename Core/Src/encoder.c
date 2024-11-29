@@ -26,7 +26,6 @@ void Encoder_Init (void){
 
 
 Encoder_Feedback_t Encoder_Read (void){
-	//Encoder_Feedback_t enc;
 
 	uint32_t val = htim3.Instance->CNT;
 
@@ -44,7 +43,7 @@ Encoder_Feedback_t Encoder_Read (void){
 		};
 	};
 
-	float delta_angle = fabs(enc.angle_abs - last_angle);
+	float delta_angle = (enc.angle_abs - last_angle);
 
 	enc.d_angle = delta_angle / 0.04;
 
