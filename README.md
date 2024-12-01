@@ -11,7 +11,6 @@ L'objectif du TP est de mettre en oeuvre le système décrit dans le schéma sui
 ![](img/maquette.JPG)
 
 
-
 ## Mise en place
 
 On créé un projet STM32 en séléctionnant la carte nucleo que nous utilisons.
@@ -206,6 +205,7 @@ Pour changer le sens de rotation, on échange les deux sorties.
 
 On initialise le moteur dans le `main.c`, et on test le bon fonctionnement de la fonction _Motor_Pwm_Update_ en l'appelant dans la fonction _main_.
 
+
 ## Lecture du codeur
 
 Le code suivant du fichier `tim.c` permet de contrôler le timer 3, permettant de lire les valeurs de l'encodeur :
@@ -366,9 +366,104 @@ void HAL_SYSTICK_Callback(void){
 }
 ```
 
-On affiche les valeurs mesurés avec de _printf_ dans la foncntion _main_ :
+On affiche les valeurs mesurés avec de _printf_ dans la fonction _main_ (angle absolu, angle relatif, et vitesse de rotation):
 
-![](img/encoder.webm)
+![](img/encoder.png)
+
+
+## Ecriture d'un correcteur PID
+
+On créé le fichier `pid.h` :
+
+```c
+#ifndef PID_H
+#define PID_H
+
+typedef struct {
+	struct {
+		float Kp; // Proportional coefficient
+		float Ki; // Integral coefficient
+		float Kd; // Derivative coefficient
+		float integ_sat; // Windup control with integral saturation
+		// so that abs(integ) <= abs(integ_sat)
+		float error_stop; // Error below which integration stops
+	} init;
+
+	struct {
+		float order; // order (what you want to reach)
+		float feedback; // what you reached for now
+	} input;
+
+	struct {
+		float error; // order - feedback
+		float previous_error; // previous error... ^^
+		float deriv; // i.e. output
+		float integ; // i.e. output
+		float output; // output = Ki*error + Ki*integ + Kd*deriv
+	} process;
+} PID_t;
+
+void PID_Init(PID_t* pidHandle, float Kp, float Ki, float Kd, float windup, float error_stop);
+float PID_Execute(PID_t* pidHandle);
+#endif
+```
+
+et le fichier `pid.c` :
+
+```c
+#include "pid.h"
+#include <math.h>
+
+void PID_Init(PID_t* pidHandle, float Kp, float Ki, float Kd, float windup, float error_stop){
+	//Initialisation des coefficients PID
+	pidHandle->init.Kp = Kp;
+	pidHandle->init.Ki = Ki;
+	pidHandle->init.Kd = Kd;
+	pidHandle->init.integ_sat = windup;
+	pidHandle->init.error_stop = error_stop;
+
+	//Initialisation des variables de processus
+	pidHandle->process.error = 0.0f;
+	pidHandle->process.previous_error = 0.0f;
+	pidHandle->process.deriv = 0.0f;
+	pidHandle->process.integ = 0.0f;
+	pidHandle->process.output = 0.0f;
+}
+
+float PID_Execute(PID_t* pidHandle){
+
+	pidHandle->process.error = pidHandle->input.order - pidHandle->input.feedback; //error
+
+	pidHandle->process.deriv = pidHandle->process.error - pidHandle->process.previous_error; //derivate
+
+    if (fabsf(pidHandle->process.error) > pidHandle->init.error_stop) { //integer
+	    pidHandle->process.integ += pidHandle->process.error;
+		if (pidHandle->process.integ > pidHandle->init.integ_sat) {
+		    pidHandle->process.integ = pidHandle->init.integ_sat;
+		} else if (pidHandle->process.integ < -pidHandle->init.integ_sat) {
+		    pidHandle->process.integ = -pidHandle->init.integ_sat;
+		}
+    }
+
+	pidHandle->process.output = pidHandle->init.Kp * pidHandle->process.error
+	         	 	 	 	  + pidHandle->init.Ki * pidHandle->process.integ
+							  - pidHandle->init.Kd * pidHandle->process.deriv;
+
+	pidHandle->process.previous_error = pidHandle->process.error;
+
+	return pidHandle->process.output;
+}
+```
+
+On veut utiliser la valeur de _process.output_ en entrée de la fonction de contrôle du moteur. la sortie doit donc être une valeur entre -1 et 1. Si la valeur est supérieure à 1 ou inférieure à -1, la fonction de contrôle du moteur fixe la consigne à 1 ou -1, donc cela ne pose pas de problème.
+
+
+## Mise en oeuvre du PID pour asservir le moteur en vitesse
+
+
+
+
+
 
 
 
