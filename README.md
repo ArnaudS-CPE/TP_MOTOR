@@ -166,15 +166,15 @@ et le fichier `motor.c` :
 #include <stdio.h>
 #include <math.h>
 
-void Motor_Init(void){
+void Motor_Init(void){ //initialisation du moteur
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
 
-	htim1.Instance->CCR1 = htim1.Init.Period/2;
-	htim1.Instance->CCR2 = htim1.Init.Period/4;
+	htim1.Instance->CCR1 = htim1.Init.Period/2; //on fixe une rapport cyclique pour tester
+	htim1.Instance->CCR2 = htim1.Init.Period/4; //commente par la suite
 }
 
-void Motor_Pwm_Update(float in){
+void Motor_Pwm_Update(float in){ //changement de sens/vitesse
 	if(in > 1.0){
 		in = 1.0;
 	}
@@ -182,7 +182,7 @@ void Motor_Pwm_Update(float in){
 		in = -1.0;
 	}
 
-	uint32_t speed = htim1.Init.Period - (uint32_t)(fabs(in) * htim1.Init.Period);
+	uint32_t speed = htim1.Init.Period - (uint32_t)(fabs(in) * htim1.Init.Period); //calcul du rapport cyclique
 	if(in > 0.0f){
 		htim1.Instance->CCR1 = speed;
 		htim1.Instance->CCR2 = htim1.Init.Period;}
@@ -190,7 +190,7 @@ void Motor_Pwm_Update(float in){
 		htim1.Instance->CCR2 = speed;
 		htim1.Instance->CCR1 = htim1.Init.Period;}
 	if(in == 0.0f){
-		htim1.Instance->CCR1 = htim1.Init.Period;
+		htim1.Instance->CCR1 = htim1.Init.Period; //2 sorties a l'etat haut => moteur a l'arret
 		htim1.Instance->CCR2 = htim1.Init.Period;}
 }
 ```
@@ -204,14 +204,171 @@ On visualise ces signaux à l'oscilloscope :
 La fonction _Motor_Pwm_Update_ prend en entrée un flotant et permet de modifier la vitesse et le sens de rotation du moteur. Pour cela, on modifier la rapport cyclique d'une des sorties pour qu'il soit proportionnel à la valeur d'entrée, et on fixe l'autre sortie à l'état haut.
 Pour changer le sens de rotation, on échange les deux sorties.
 
+On initialise le moteur dans le `main.c`, et on test le bon fonctionnement de la fonction _Motor_Pwm_Update_ en l'appelant dans la fonction _main_.
+
 ## Lecture du codeur
 
+Le code suivant du fichier `tim.c` permet de contrôler le timer 3, permettant de lire les valeurs de l'encodeur :
 
 
+```c
+/* TIM3 init function */
+void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_Encoder_InitTypeDef sConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 0;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 65535;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI1;
+  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC1Filter = 10;
+  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC2Filter = 0;
+  if (HAL_TIM_Encoder_Init(&htim3, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+
+}
 
 
+void HAL_TIM_Encoder_MspDeInit(TIM_HandleTypeDef* tim_encoderHandle)
+{
 
+  if(tim_encoderHandle->Instance==TIM3)
+  {
+  /* USER CODE BEGIN TIM3_MspDeInit 0 */
 
+  /* USER CODE END TIM3_MspDeInit 0 */
+    /* Peripheral clock disable */
+    __HAL_RCC_TIM3_CLK_DISABLE();
+
+    /**TIM3 GPIO Configuration
+    PA6     ------> TIM3_CH1
+    PA7     ------> TIM3_CH2
+    */
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_6|GPIO_PIN_7);
+
+  /* USER CODE BEGIN TIM3_MspDeInit 1 */
+
+  /* USER CODE END TIM3_MspDeInit 1 */
+  }
+}
+```
+
+On créé le fichier `encoder.h` :
+
+```c
+#ifndef ENCODER_H
+#define ENCODER_H
+
+typedef struct {
+	float angle_rel;
+	float angle_abs;
+	float d_angle;
+} Encoder_Feedback_t;
+
+Encoder_Feedback_t Encoder_Read (void);
+void Encoder_Init (void);
+
+#endif
+```
+
+et le fichier `encoder.c` :
+
+```c
+#include "encoder.h"
+#include "tim.h"
+#include <stdio.h>
+#include <math.h>
+
+static float last_angle = 0;
+
+Encoder_Feedback_t enc = {0.0f, 0.0f, 0.0f}; //creation de la variable encoder
+
+void Encoder_Init (void){ //initialisation de l'encodeur
+	HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
+	htim3.Instance->CNT = 32767; //on fixe la valeur du compteur "au milieu" pour eviter les cas 0->65535 et 65535->0
+}
+
+Encoder_Feedback_t Encoder_Read (void){
+
+	uint32_t val = htim3.Instance->CNT; //lecture de la valeur du compteur
+
+	enc.angle_abs = enc.angle_abs + (float)((32767.0 - (float)val) * (float)M_PI * 2.0 / 24.0) / 75.0; //conversion en rad
+
+	enc.angle_rel = enc.angle_abs; //angle [0;2*pi[]
+	if(enc.angle_rel > 0.0){
+		while(enc.angle_rel >= (float)(2*M_PI)){
+			enc.angle_rel = enc.angle_rel - (float)(2*M_PI);};
+	};
+	if(enc.angle_rel < 0.0){
+		while(enc.angle_rel <= 0.0){
+			enc.angle_rel = enc.angle_rel + (float)(2*M_PI);};
+	};
+
+	float delta_angle = (enc.angle_abs - last_angle);
+	enc.d_angle = delta_angle / 0.04; //vitesse de rotation en rad/s
+
+	last_angle = enc.angle_abs;
+	htim3.Instance->CNT = 32767; //reinitialisation du comteur a chaque lecture
+
+	return enc;
+}
+```
+
+On initialise le moteur dans le `main.c`, et on modifie la fonction _HAL_SYSTICK_Callback_ pour qu'en plus de faire clignoter la led, elle appelle la fonction _Encoder_Read_ toutes les 40ms :
+
+```c
+extern Encoder_Feedback_t encoder;
+
+void HAL_SYSTICK_Callback(void){
+	static uint16_t tempoNms = 500;
+	static uint16_t tempoEncNms = 40;
+	if(tempoNms > 0 )
+		tempoNms--;
+	else{
+		tempoNms = 500;
+		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+	}
+	if(tempoEncNms > 0 )
+		tempoEncNms--;
+	else{
+		tempoEncNms = 40;
+		Encoder_Read();
+	}
+}
+```
+
+On affiche les valeurs mesurés avec de _printf_ dans la foncntion _main_ :
+
+![](img/encoder.webm)
 
 
 
