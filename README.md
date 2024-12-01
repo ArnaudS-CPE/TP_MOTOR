@@ -4,7 +4,7 @@
 
 Lien Github : https://github.com/ArnaudS-CPE/TP_MOTOR
 
-L'objectif du TP est de mettre en oeuvre le système décrit dans le schéma suivant sur un carte STM32 NUCLEO-F401RE, avec un moteur-réducteur-codeur (Pololu 75:1), un pont en H (DRV8833), et un accéléromètre (MPU-6050). Les codes seront réalisés sur STM32CubeIDE (version 1.17.0)
+L'objectif du TP est de mettre en oeuvre le système décrit dans le schéma suivant sur un carte STM32 NUCLEO-F401RE, avec un moteur-réducteur-codeur (Pololu 75:1), un pont en H (DRV8833), et un accéléromètre (MPU-6050). Les codes seront réalisés sur STM32CubeIDE (version 1.17.0).
 
 ![](img/systeme.png)
 
@@ -23,7 +23,7 @@ On configure également un port I2C qui sera utilisé communiquer avec l'accél�
 
 On laisse la fréquence des timers à leur valeur par défaut (84MHz).
 
-On créé ensuite la fonction suivante dans le fichier `main.c`  pour faire clignoter la LED de la carte à 1Hz:
+On créé ensuite la fonction suivante dans le fichier `main.c`  pour faire clignoter la LED de la carte à 1Hz :
 
 ```c
 void HAL_SYSTICK_Callback(void){
