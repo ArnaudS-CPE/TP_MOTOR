@@ -78,23 +78,23 @@ void MX_TIM1_Init(void)
   /* USER CODE BEGIN TIM1_Init 1 */
 
   /* USER CODE END TIM1_Init 1 */
-  htim1.Instance = TIM1;
+  htim1.Instance = TIM1; //parametres que l'on peut modifier dans l'interface graphique
   htim1.Init.Prescaler = 0;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 4200;
+  htim1.Init.Period = 4200; 
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK) //conditions pour verifier le setup, ici l'initialisation
   {
     Error_Handler();
   }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL; //clock utilisee
   if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK) //mode pwm actif
   {
     Error_Handler();
   }
@@ -104,18 +104,18 @@ void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.OCMode = TIM_OCMODE_PWM1; //mode du timer : pwm
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
   sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK) //chanel 1 du timer OK
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK) //chanel 2 du timer OK
   {
     Error_Handler();
   }
@@ -226,7 +226,7 @@ void MX_TIM3_Init(void)
   /* USER CODE BEGIN TIM3_Init 1 */
 
   /* USER CODE END TIM3_Init 1 */
-  htim3.Instance = TIM3;
+  htim3.Instance = TIM3; //parametres du timer
   htim3.Init.Prescaler = 0;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 65535;
@@ -258,7 +258,7 @@ void MX_TIM3_Init(void)
 }
 
 
-void HAL_TIM_Encoder_MspDeInit(TIM_HandleTypeDef* tim_encoderHandle)
+void HAL_TIM_Encoder_MspDeInit(TIM_HandleTypeDef* tim_encoderHandle) //initialisation de l'encodeur
 {
 
   if(tim_encoderHandle->Instance==TIM3)
@@ -460,7 +460,7 @@ On veut utiliser la valeur de _process.output_ en entrée de la fonction de cont
 
 ## Mise en oeuvre du PID pour asservir le moteur en vitesse
 
-Après avoir initialiser le pid, on ajoute la fonction _PID_execute_ à la fonction _HAL_SYSTICK_Callback_ :
+Après avoir initialisé le pid et fixé la consigne de vitesse, on ajoute la fonction _PID_execute_ à la fonction _HAL_SYSTICK_Callback_ :
 
 ```c
 PID_Init(&pid, 0.2f, 0.03f, 0.03f, 50.0f, 0.01f);
@@ -518,11 +518,69 @@ Ces lignes permettent de changer la consigne en vitesse à chaque fois que le bo
 
 ## Asservissement en position
 
+Pour contrôller le moteur en position, on remplace la consigne en vitesse par un angle en radian, et on prend l'angle absolu en _feedback_.
+On ajoute la consigne dans un _switch case_ pour pouvoir changer simplement de type de consigne.
+
+On doit aussi modifier les coefficients du PID :
+- Kp = 0,64
+- Ki = 0,0
+- Kd = 0,01
+
+```c
+mode
+switch(mode){
+    case 0: //vitesse
+    	PID_Init(&pid, 0.2f, 0.03f, 0.03f, 50.0f, 0.01f);
+    	pid.input.order = 0.0f;
+    	break;
+    case 1: //position
+        PID_Init(&pid, 0.64f, 0.0f, 0.01f, 50.0f, 0.01f);
+        pid.input.order = 0.0f;
+        break;     
+  }
+```
 
 
+## Consigne avec accéléromètre
 
+On veut à présent maintenir l'orientation de l'axe du moteur en fonction de l'inclinaison de la maquette. Pour cela, on ajoute au projet les scripts `mpu6050.h` et `mpu6050.c` fournis, utilisant le port I2C configuré précédement, permettant de lire l'orientation du capteur . On utilise le même code qu'à la partie précédente, en remplaçant la consigne par l'angle mesuré par le capteur, lu avec la fonction _MPU6050_Read_Accel_ (on a au préalable initialisé le capteur avec _MPU6050_Init_) :
 
+```c
+acc = MPU6050_Read_Accel();
+pid.input.feedback = encoder.angle_abs;
+pid.input.order = atan2(acc.y, acc.z) + (M_PI/2);
+```
 
+On ajoute ce code à un nouveau _case_ pour pouvoir changer de mode de fonctionnement.
 
+De plus, on déplace le code de la fonction _HAL_SYSTICK_Callback_ dans une fonction du fichier `DriveSyst.c` ci-dessous, que l'on appelle dans _HAL_SYSTICK_Callback_ pour plus de clarté.
 
+```c
+#include "DriveSyst.h"
 
+PID_t pid;
+Encoder_Feedback_t encoder;
+Xyz acc;
+
+int mode;
+
+void DriveSyst(void){
+	encoder = Encoder_Read();
+	switch(mode){
+		case 0: //vitesse
+			pid.input.feedback = encoder.d_angle;
+			break;
+		case 1: //position
+			pid.input.feedback = encoder.angle_abs;
+			break;
+		case 2: //accelerometre
+			acc = MPU6050_Read_Accel();
+			pid.input.feedback = encoder.angle_abs;
+			//pid.input.order = M_PI * acc.y + M_PI;
+			pid.input.order = atan2(acc.y, acc.z) + (M_PI/2);
+			break;
+	}
+	float consigne = PID_Execute(&pid);
+	Motor_Pwm_Update(consigne);
+}
+```

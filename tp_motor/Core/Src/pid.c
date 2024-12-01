@@ -31,7 +31,7 @@ float PID_Execute(PID_t* pidHandle){
 
 	pidHandle->process.deriv = pidHandle->process.error - pidHandle->process.previous_error; //derivate
 
-    if (fabsf(pidHandle->process.error) > pidHandle->init.error_stop) { //integer
+    if (fabsf(pidHandle->process.error) > pidHandle->init.error_stop) { //integer avec anti-windup
 	    pidHandle->process.integ += pidHandle->process.error;
 		if (pidHandle->process.integ > pidHandle->init.integ_sat) {
 		    pidHandle->process.integ = pidHandle->init.integ_sat;
@@ -40,7 +40,7 @@ float PID_Execute(PID_t* pidHandle){
 		}
     }
 
-	pidHandle->process.output = pidHandle->init.Kp * pidHandle->process.error
+	pidHandle->process.output = pidHandle->init.Kp * pidHandle->process.error //calcul de la sortie
 	         	 	 	 	  + pidHandle->init.Ki * pidHandle->process.integ
 							  - pidHandle->init.Kd * pidHandle->process.deriv;
 

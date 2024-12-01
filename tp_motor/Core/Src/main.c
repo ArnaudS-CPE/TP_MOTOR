@@ -76,14 +76,14 @@ void HAL_SYSTICK_Callback(void){
 		tempoNms--;
 	else{
 		tempoNms = 500;
-		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin); //appele toutes les 500ms
 	}
 	if(tempoEncNms > 0 )
 		tempoEncNms--;
 	else{
 		tempoEncNms = 40;
 
-		DriveSyst();
+		DriveSyst(); // appele toutes les 40ms
 	}
 }
 
@@ -170,13 +170,13 @@ int main(void)
 	  printf("vitesse : %f", encoder.d_angle);
 
 	  //gestion du bouton
-	  if(HAL_GPIO_ReadPin (GPIOC, GPIO_PIN_13) == 0){
+	  if(HAL_GPIO_ReadPin (GPIOC, GPIO_PIN_13) == 0){ //detecte un appui sur le bouton bleu
 		  printf("\r button pressed");
 		  if(pid.input.order < (2*M_PI)){
 			  pid.input.order = pid.input.order + (M_PI/2);
-			  HAL_Delay(500);
+			  HAL_Delay(500); //delai pour eviter de prendre en compte 2 appuis sur le bouton
 		  }else{
-			  pid.input.order = (-2*M_PI);
+			  pid.input.order = (-2*M_PI); //retour a -2pi si on depasse 2pi
 			  HAL_Delay(500);
 		  }
 	  }
