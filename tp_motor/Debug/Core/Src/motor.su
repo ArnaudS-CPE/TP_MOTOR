@@ -1,0 +1,2 @@
+../Core/Src/motor.c:13:6:Motor_Init	8	static
+../Core/Src/motor.c:24:6:Motor_Pwm_Update	40	static
