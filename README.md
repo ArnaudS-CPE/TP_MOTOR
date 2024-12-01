@@ -460,6 +460,65 @@ On veut utiliser la valeur de _process.output_ en entrée de la fonction de cont
 
 ## Mise en oeuvre du PID pour asservir le moteur en vitesse
 
+Après avoir initialiser le pid, on ajoute la fonction _PID_execute_ à la fonction _HAL_SYSTICK_Callback_ :
+
+```c
+PID_Init(&pid, 0.2f, 0.03f, 0.03f, 50.0f, 0.01f);
+pid.input.order = (float)2*M_PI; //consigne en vitesse
+```
+
+```c
+extern Encoder_Feedback_t encoder;
+extern PID_t pid;
+
+void HAL_SYSTICK_Callback(void){
+	static uint16_t tempoNms = 500;
+	static uint16_t tempoEncNms = 40;
+	if(tempoNms > 0 )
+		tempoNms--;
+	else{
+		tempoNms = 500;
+		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+	}
+	if(tempoEncNms > 0 )
+		tempoEncNms--;
+	else{
+		tempoEncNms = 40;
+        encoder = Encoder_Read();
+        pid.input.feedback = encoder.d_angle;
+        float consigne = PID_Execute(&pid);
+    	Motor_Pwm_Update(consigne);
+	}
+}
+```
+
+On test les coefficients un par un jusqu'à avoir une vitesse de rotation égale à la consigne.
+
+On fixe donc :
+- Kp = 0,2
+- Ki = 0,03
+- Kd = 0,03
+
+On ajoute ensuite les lignes suivante à la bouble _while_ de la fonction _main_ :
+
+```c
+if(HAL_GPIO_ReadPin (GPIOC, GPIO_PIN_13) == 0){
+    if(pid.input.order < (2*M_PI)){
+        pid.input.order = pid.input.order + (M_PI/2);
+        HAL_Delay(500);
+    }else{
+        pid.input.order = (-2*M_PI);
+        HAL_Delay(500);
+    }
+}
+```
+
+Ces lignes permettent de changer la consigne en vitesse à chaque fois que le bouton bleu de la carte (configuré par défaut à la création du projet). On augmente la vitesse de rotation de pi/2 à chaque appui sur le bouton, et on remet la vitesse à -2pi lorsqu'on dépasse 2pi.
+
+
+## Asservissement en position
+
+
 
 
 
